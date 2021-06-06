@@ -1,0 +1,1 @@
+# cybozu-infla-pretask
