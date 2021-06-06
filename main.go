@@ -9,36 +9,33 @@ import (
 	"os"
 )
 
-type Recver struct {
+type Mapper struct {
 	num int
-	raw string
+	val string
 }
 
-type Sender struct {
-	num    int
-	hexsha [32]byte
-}
-
-func Worker(recver chan Recver, sender chan Sender) {
+func Worker(recver, sender chan Mapper, done chan bool) {
 	for v := range recver {
-		sender <- Sender{v.num, sha256.Sum256([]byte(v.raw))}
+		r := sha256.Sum256([]byte(v.val))
+		sender <- Mapper{v.num, hex.EncodeToString(r[:])}
 	}
+	done <- true
 }
 
-func Buffer(sender chan Sender) {
+func Printer(sender chan Mapper) {
 	i := 0
-	buffer := make(map[int][32]byte)
+	buffer := make(map[int]string)
 	for v := range sender {
-		buffer[v.num] = v.hexsha
-		hexsha, ok := buffer[i]
-		if ok {
-			fmt.Println(hexsha)
+		buffer[v.num] = v.val
+		for hexsha, ok := buffer[i]; ok; hexsha, ok = buffer[i] {
+			fmt.Println(i, hexsha)
+			delete(buffer, i)
 			i += 1
 		}
 	}
 }
 
-func processConcurrent() {
+func processConcurrent2() {
 	file, err := os.Open("./test.txt")
 	if err != nil {
 		log.Fatal(err)
@@ -46,24 +43,49 @@ func processConcurrent() {
 	defer file.Close()
 
 	// setup worker
-	const WORKER_NUM = 10
-	recvers := make([]chan Recver, WORKER_NUM)
-	sender := make(chan Sender, 10000)
+	const WORKER_NUM = 1
+	recvers := make([]chan Mapper, WORKER_NUM)
+	sender := make(chan Mapper, 10000)
+	done := make([]chan bool, WORKER_NUM)
 	defer close(sender)
 	for i := 0; i < WORKER_NUM; i++ {
-		recvers[i] = make(chan Recver)
-		go Worker(recvers[i], sender)
+		recvers[i] = make(chan Mapper)
+		done[i] = make(chan bool)
+		defer close(done[i])
+		go Worker(recvers[i], sender, done[i])
 	}
 	go Printer(sender)
 
 	scanner := bufio.NewScanner(file)
 	i := 0
 	for scanner.Scan() {
-		recvers[i%WORKER_NUM] <- Recver{i, scanner.Text()}
+		recvers[i%WORKER_NUM] <- Mapper{i, scanner.Text()}
 		i += 1
 	}
 	for i := 0; i < WORKER_NUM; i++ {
 		close(recvers[i])
+		<-done[i]
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func processConcurrent1() {
+	file, err := os.Open("./test.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		printChecksum := func(s string) {
+			r := sha256.Sum256([]byte(s))
+			fmt.Println(hex.EncodeToString(r[:]))
+		}
+		go printChecksum(scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -80,9 +102,9 @@ func processSingle() {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		// sha256.Sum256([]byte(scanner.Text()))
 		r := sha256.Sum256([]byte(scanner.Text()))
 		fmt.Println(hex.EncodeToString(r[:]))
+		// _ = hex.EncodeToString(r[:])
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -91,6 +113,7 @@ func processSingle() {
 }
 
 func main() {
-	// processSingle()
-	processConcurrent()
+	processSingle()
+	// processConcurrent1()
+	// processConcurrent2()
 }

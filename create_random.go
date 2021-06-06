@@ -27,7 +27,7 @@ func main() {
 	}
 	defer file.Close()
 
-	for i := 0; i < 20000000; i++ {
+	for i := 0; i < 27145828; i++ {
 		if i%1000000 == 0 {
 			fmt.Println(i)
 		}
