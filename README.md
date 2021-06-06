@@ -3,16 +3,16 @@
 ## 概要
 - 3つの関数を実装し、計測を行った
 - `processSingle()`
-  - 1つのスレッドで単純にファイルの各行からsha256のチェックサムを計算し、標準出力を行う
+  - ファイルの各行からsha256のチェックサムを計算し、標準出力を行う
+  - 全ての処理を順番に行う、つまり1スレッドのプログラム
 - `processConcurrent1()`
-  - `processSingle()` にgoroutineを組み合わせた
-  - sha256のチェックサム計算と標準出力をgoroutineに切り離した
+  - `processSingle()` にgoroutineを組み合わせて、sha256のチェックサム計算と標準出力をgoroutineに切り離した
   - goroutineの数が増えすぎると標準出力を行う際にgoroutine同士のlock待ちが起きプログラムが強制終了する
 - `processConcurrent2()`
-  - `processConcurrent1()` に対して、以下の変更を行ったgoroutineの数とチェックサムの標準出力順序が正しくなるように実装したもの
-    - gochannelを利用して、goroutine間での情報のやりとりを行う
-    - goroutineを利用すると、チェックサムの正しい終了順序が保証されなくなる
-      - そのため、バッファを利用して、正しい順序で標準出力が行われるようにした
+  - `processConcurrent1()` に対して、以下の変更を行った
+    - 生成するチェックサムを行うgoroutineの数を制御できるようにした
+      - gochannelを利用して、goroutine間での情報のやりとりを行う
+    - goroutineを利用すると、goroutine間の処理順序の保証が無くなるため、バッファを利用して、正しい順序で標準出力が行われるようにした
 
 ## 計測結果
 - 以下のような行を持つ1.8GBのファイルに対して`processSingle()` と `processConcurrent2()` を実行した
@@ -44,7 +44,7 @@ go run ./main.go > /dev/null  24.94s user 8.18s system 231% cpu 14.292 total
 go run ./main.go > /dev/null  24.93s user 8.19s system 232% cpu 14.245 total
 go run ./main.go > /dev/null  24.75s user 8.08s system 237% cpu 13.837 total
 
-平均実行時間: 14.1544
+平均実行時間: 14.1544秒
 ```
 
 ## 考察
